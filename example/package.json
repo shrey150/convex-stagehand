@@ -1,0 +1,17 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@browserbasehq/stagehand": "^3.0.7",
+    "convex": "^1.18.0",
+    "playwright-core": "^1.57.0"
+  }
+}
