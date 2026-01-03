@@ -9,12 +9,13 @@ browsers.
 
 ## Features
 
+- **AI-Powered Automation**: Use Stagehand's natural language commands and
+  intelligent element finding
 - **Durable Execution**: Jobs survive server restarts and failures
 - **Automatic Retries**: Configurable retry logic with exponential backoff
 - **Session Management**: Automatic Browserbase session creation and cleanup
 - **Progress Tracking**: Reactive queries for real-time job status
 - **Webhook Support**: Get notified when jobs complete
-- **Any Automation Tool**: Use Playwright, Puppeteer, or any CDP-compatible tool
 
 ## Architecture
 
@@ -23,20 +24,21 @@ This component follows the
 external service integration:
 
 1. User schedules a job via component API
-2. Component creates Browserbase session
-3. Component calls user's automation action with session URL
-4. User performs automation (Playwright, Puppeteer, etc.)
+2. Component calls user's automation action
+3. User initializes Stagehand with Browserbase credentials
+4. User performs AI-powered automation
 5. User reports success/failure back to component
-6. Component cleans up session automatically
+6. Stagehand handles session cleanup automatically
 
 ## Installation
 
 ```bash
-npm install @convex-dev/browserbase playwright-core
+npm install @convex-dev/browserbase @browserbasehq/stagehand
 ```
 
-Note: We recommend `playwright-core` (not `playwright`) since you don't need
-bundled browsers - Browserbase provides cloud browsers.
+Stagehand is Browserbase's AI-powered browser automation SDK. It provides
+intelligent element finding and natural language commands, making browser
+automation much simpler than manual selectors.
 
 ## Quick Start
 
@@ -61,9 +63,12 @@ Create a `.env.local` file:
 ```bash
 BROWSERBASE_API_KEY=your_api_key
 BROWSERBASE_PROJECT_ID=your_project_id
+OPENAI_API_KEY=your_openai_api_key
 ```
 
-Get your credentials from: https://browserbase.com/dashboard
+Get your Browserbase credentials from: https://browserbase.com/dashboard
+
+The OpenAI API key is required for Stagehand's AI-powered features.
 
 ### 3. Create Your Automation Action
 
@@ -73,35 +78,52 @@ Create `convex/browserAutomation.ts`:
 import { internalAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { v } from "convex/values";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 export const scrapePageAction = internalAction({
   args: {
     jobId: v.id("browserbase:jobs"),
-    connectUrl: v.string(),
     params: v.object({ url: v.string() }),
   },
-  handler: async (ctx, { jobId, connectUrl, params }) => {
+  handler: async (ctx, { jobId, params }) => {
+    let stagehand: Stagehand | null = null;
+
     try {
-      // Import Playwright
-      const { chromium } = await import("playwright-core");
+      // Initialize Stagehand with Browserbase
+      stagehand = new Stagehand({
+        env: "BROWSERBASE",
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        enableCaching: false,
+        model: "openai/gpt-4o-mini",
+      });
 
-      // Connect to Browserbase session
-      const browser = await chromium.connectOverCDP(connectUrl);
-      const page = browser.contexts()[0].pages()[0];
+      await stagehand.init();
+      const page = stagehand.page;
 
-      // Do your automation
+      // Navigate to the page
       await page.goto(params.url);
-      const title = await page.title();
 
-      await browser.close();
+      // Use AI to extract data - no selectors needed!
+      const data = await page.extract({
+        instruction: "Extract the page title and main heading",
+        schema: {
+          title: "string",
+          heading: "string",
+        },
+      });
+
+      await stagehand.close();
 
       // Report success to component
       await ctx.runMutation(api.browserbase._completeJob, {
         jobId,
-        result: { title },
+        result: data,
         metrics: { duration: Date.now() },
       });
     } catch (error: any) {
+      if (stagehand) await stagehand.close().catch(() => {});
+
       // Report failure to component
       await ctx.runMutation(api.browserbase._failJob, {
         jobId,
@@ -238,49 +260,53 @@ websites:
 
 ### 1. HackerNews Top Stories Scraper
 
-Extracts the top stories from HackerNews with rankings, titles, and scores.
+Extracts the top stories from HackerNews using AI-powered extraction.
 
 ```typescript
 // convex/browserAutomation.ts
+import { Stagehand } from "@browserbasehq/stagehand";
+
 export const scrapeHackerNewsAction = internalAction({
   args: {
     jobId: v.id("browserbase:jobs"),
-    connectUrl: v.string(),
     params: v.object({ maxStories: v.optional(v.number()) }),
   },
-  handler: async (ctx, { jobId, connectUrl, params }) => {
-    try {
-      const { chromium } = await import("playwright-core");
-      const browser = await chromium.connectOverCDP(connectUrl);
-      const page = browser.contexts()[0].pages()[0];
+  handler: async (ctx, { jobId, params }) => {
+    let stagehand: Stagehand | null = null;
 
-      await page.goto("https://news.ycombinator.com", {
-        waitUntil: "networkidle",
+    try {
+      stagehand = new Stagehand({
+        env: "BROWSERBASE",
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        model: "openai/gpt-4o-mini",
       });
 
-      const stories = await page.evaluate((max) => {
-        const items = Array.from(document.querySelectorAll(".athing")).slice(
-          0,
-          max,
-        );
-        return items.map((item) => ({
-          rank: item.querySelector(".rank")?.textContent || "",
-          title: item.querySelector(".titleline > a")?.textContent || "",
-          url: item.querySelector(".titleline > a")?.getAttribute("href") || "",
-          score:
-            item.nextElementSibling?.querySelector(".score")?.textContent ||
-            "N/A",
-        }));
-      }, params.maxStories || 5);
+      await stagehand.init();
+      const page = stagehand.page;
 
-      await browser.close();
+      await page.goto("https://news.ycombinator.com");
+
+      // AI extracts the data - no CSS selectors needed!
+      const result = await page.extract({
+        instruction: `Extract the top ${params.maxStories || 5} stories.
+                      For each story, get the rank, title, URL, and score.`,
+        schema: {
+          stories: [
+            { rank: "string", title: "string", url: "string", score: "string" },
+          ],
+        },
+      });
+
+      await stagehand.close();
 
       await ctx.runMutation(api.browserbase._completeJob, {
         jobId,
-        result: { stories, count: stories.length },
+        result: { stories: result.stories, count: result.stories.length },
         metrics: { duration: Date.now() },
       });
     } catch (error: any) {
+      if (stagehand) await stagehand.close().catch(() => {});
       await ctx.runMutation(api.browserbase._failJob, {
         jobId,
         error: error.message,
@@ -295,51 +321,59 @@ const { jobId } = await convex.mutation(api.example.scrapeHackerNews, {
 });
 ```
 
-**Result:** Successfully extracts live HackerNews stories in ~10 seconds.
+**Result:** Successfully extracts live HackerNews stories using AI extraction.
 
 ### 2. GitHub Repository Stats Scraper
 
-Extracts repository information including stars, forks, and description.
+Extracts repository information using AI-powered analysis.
 
 ```typescript
 // convex/browserAutomation.ts
+import { Stagehand } from "@browserbasehq/stagehand";
+
 export const scrapeGitHubRepoAction = internalAction({
   args: {
     jobId: v.id("browserbase:jobs"),
-    connectUrl: v.string(),
     params: v.object({ owner: v.string(), repo: v.string() }),
   },
-  handler: async (ctx, { jobId, connectUrl, params }) => {
+  handler: async (ctx, { jobId, params }) => {
+    let stagehand: Stagehand | null = null;
+
     try {
-      const { chromium } = await import("playwright-core");
-      const browser = await chromium.connectOverCDP(connectUrl);
-      const page = browser.contexts()[0].pages()[0];
-
-      await page.goto(`https://github.com/${params.owner}/${params.repo}`, {
-        waitUntil: "networkidle",
+      stagehand = new Stagehand({
+        env: "BROWSERBASE",
+        apiKey: process.env.BROWSERBASE_API_KEY!,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        model: "openai/gpt-4o-mini",
       });
 
-      // Extract repository info
-      const name = await page.evaluate(() => {
-        return (
-          document.querySelector("title")?.textContent?.split(":")[0].trim() ||
-          ""
-        );
-      });
-      const stars = await page.evaluate(() => {
-        const starLink = document.querySelector('a[href$="/stargazers"]');
-        return starLink?.textContent?.match(/[\d,]+/)?.[0] || "0";
-      });
-      // ... more extraction
+      await stagehand.init();
+      const page = stagehand.page;
 
-      await browser.close();
+      await page.goto(`https://github.com/${params.owner}/${params.repo}`);
+
+      // AI extracts all repo info in one call
+      const repoInfo = await page.extract({
+        instruction:
+          "Extract the repository name, description, stars, forks, and primary language.",
+        schema: {
+          name: "string",
+          description: "string",
+          stars: "string",
+          forks: "string",
+          language: "string",
+        },
+      });
+
+      await stagehand.close();
 
       await ctx.runMutation(api.browserbase._completeJob, {
         jobId,
-        result: { name, stars /* ... */ },
+        result: repoInfo,
         metrics: { duration: Date.now() },
       });
     } catch (error: any) {
+      if (stagehand) await stagehand.close().catch(() => {});
       await ctx.runMutation(api.browserbase._failJob, {
         jobId,
         error: error.message,
@@ -355,7 +389,7 @@ const { jobId } = await convex.mutation(api.example.scrapeGitHubRepo, {
 });
 ```
 
-**Result:** Successfully extracts GitHub repo data in ~8 seconds.
+**Result:** Successfully extracts GitHub repo data using AI extraction.
 
 ### 3. Batch Processing Multiple URLs
 
@@ -503,10 +537,11 @@ npx convex dev
 
 🔗 **External Resources:**
 
+- [Stagehand docs](https://docs.browserbase.com/integrations/stagehand) -
+  AI-powered browser automation
 - [Browserbase docs](https://docs.browserbase.com) - Session configuration
 - [Convex components](https://docs.convex.dev/production/components) - Component
   architecture
-- [Playwright docs](https://playwright.dev) - Browser automation API
 
 ## License
 
