@@ -9,15 +9,13 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import type { z } from "zod";
 import type {
   GenericActionCtx,
-  GenericDataModel,
-  FunctionReference,
 } from "convex/server";
 
 // Re-export component type
 export type { ComponentApi } from "../component/_generated/component.js";
 import type { ComponentApi } from "../component/_generated/component.js";
 
-type ActionCtx = GenericActionCtx<GenericDataModel>;
+type ActionCtx = GenericActionCtx<any>;
 
 export interface StagehandConfig {
   browserbaseApiKey: string;
@@ -131,9 +129,11 @@ export class Stagehand {
       options?: ExtractOptions;
     },
   ): Promise<z.infer<T>> {
-    const jsonSchema = zodToJsonSchema(args.schema);
+    const jsonSchema: any = zodToJsonSchema(args.schema);
+    // Remove $schema field as it's reserved in Convex
+    delete jsonSchema.$schema;
     return ctx.runAction(
-      this.component.extract.extract as FunctionReference<"action">,
+      this.component.extract.extract as any,
       {
         ...this.config,
         url: args.url,
@@ -168,7 +168,7 @@ export class Stagehand {
     },
   ): Promise<ActResult> {
     return ctx.runAction(
-      this.component.act.act as FunctionReference<"action">,
+      this.component.act.act as any,
       {
         ...this.config,
         url: args.url,
@@ -202,7 +202,7 @@ export class Stagehand {
     },
   ): Promise<ObservedAction[]> {
     return ctx.runAction(
-      this.component.observe.observe as FunctionReference<"action">,
+      this.component.observe.observe as any,
       {
         ...this.config,
         url: args.url,
@@ -241,16 +241,19 @@ export class Stagehand {
     // Convert Zod schemas in steps to JSON Schema
     const convertedSteps = args.steps.map((step) => {
       if (step.type === "extract") {
+        const jsonSchema: any = zodToJsonSchema(step.schema);
+        // Remove $schema field as it's reserved in Convex
+        delete jsonSchema.$schema;
         return {
           ...step,
-          schema: zodToJsonSchema(step.schema),
+          schema: jsonSchema,
         };
       }
       return step;
     });
 
     return ctx.runAction(
-      this.component.workflow.workflow as FunctionReference<"action">,
+      this.component.workflow.workflow as any,
       {
         ...this.config,
         url: args.url,
