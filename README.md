@@ -2,8 +2,6 @@
 
 AI-powered browser automation for Convex applications. Extract data, perform actions, and automate workflows using natural language - no Playwright knowledge required.
 
-> ✅ **Tested and Working**: This component has been successfully tested with live HackerNews scraping, extracting structured data in ~11 seconds using AI.
-
 ## Features
 
 - **Simple API** - Describe what you want in plain English
