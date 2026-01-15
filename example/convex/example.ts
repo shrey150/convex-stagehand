@@ -142,45 +142,87 @@ export const performAction = action({
 });
 
 /**
- * Example 5: Multi-step workflow
+ * Example 5: Session management - search and extract with preserved state
  *
- * Demonstrates chaining multiple actions with a single browser session.
+ * Demonstrates using session management to perform multiple operations
+ * while preserving browser state (cookies, login, page context).
  */
-export const searchAndExtract = action({
+export const searchAndExtractWithSession = action({
   args: {
     searchQuery: v.string(),
   },
   handler: async (ctx, args) => {
-    const result = await stagehand.workflow(ctx, {
+    // Start a session
+    const session = await stagehand.startSession(ctx, {
       url: "https://www.google.com",
-      steps: [
-        { type: "act", action: `Search for "${args.searchQuery}"` },
-        {
-          type: "extract",
-          instruction: "Extract the top 3 search results with title, URL, and snippet",
-          schema: z.object({
-            results: z.array(
-              z.object({
-                title: z.string(),
-                url: z.string(),
-                snippet: z.string(),
-              }),
-            ),
-          }),
-        },
-      ],
+    });
+
+    try {
+      // Perform search action
+      await stagehand.act(ctx, {
+        sessionId: session.sessionId,
+        action: `Search for "${args.searchQuery}"`,
+      });
+
+      // Extract results from the same session
+      const data = await stagehand.extract(ctx, {
+        sessionId: session.sessionId,
+        instruction:
+          "Extract the top 3 search results with title, URL, and snippet",
+        schema: z.object({
+          results: z.array(
+            z.object({
+              title: z.string(),
+              url: z.string(),
+              snippet: z.string(),
+            }),
+          ),
+        }),
+      });
+
+      return {
+        searchQuery: args.searchQuery,
+        results: data.results,
+        completedAt: new Date().toISOString(),
+      };
+    } finally {
+      // Always end the session
+      await stagehand.endSession(ctx, { sessionId: session.sessionId });
+    }
+  },
+});
+
+/**
+ * Example 6: Autonomous agent
+ *
+ * Demonstrates using the agent to autonomously complete a multi-step task.
+ * The agent decides what actions to take based on the instruction.
+ */
+export const agentSearchAndExtract = action({
+  args: {
+    searchQuery: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const result = await stagehand.agent(ctx, {
+      url: "https://www.google.com",
+      instruction: `Search for "${args.searchQuery}" and extract the top 3 search results including their title, URL, and description`,
+      options: {
+        maxSteps: 10,
+      },
     });
 
     return {
       searchQuery: args.searchQuery,
-      results: result.finalResult?.data?.results || [],
+      success: result.success,
+      message: result.message,
+      actionsPerformed: result.actions.length,
       completedAt: new Date().toISOString(),
     };
   },
 });
 
 /**
- * Example 6: E-commerce product extraction
+ * Example 7: E-commerce product extraction
  *
  * Real-world example of extracting product data.
  */
@@ -214,6 +256,45 @@ export const scrapeProducts = action({
       pageTitle: data.pageTitle,
       count: data.products.length,
       scrapedAt: new Date().toISOString(),
+    };
+  },
+});
+
+/**
+ * Example 8: Complex multi-step task with agent
+ *
+ * Let the agent handle a complex workflow autonomously.
+ */
+export const agentFormFill = action({
+  args: {
+    url: v.string(),
+    formData: v.object({
+      name: v.string(),
+      email: v.string(),
+      message: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const result = await stagehand.agent(ctx, {
+      url: args.url,
+      instruction: `Fill out the contact form with the following information:
+                    - Name: ${args.formData.name}
+                    - Email: ${args.formData.email}
+                    - Message: ${args.formData.message}
+                    Then submit the form.`,
+      options: {
+        maxSteps: 10,
+      },
+    });
+
+    return {
+      success: result.success,
+      message: result.message,
+      completed: result.completed,
+      steps: result.actions.map((a) => ({
+        type: a.type,
+        reasoning: a.reasoning,
+      })),
     };
   },
 });
