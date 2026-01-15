@@ -71,16 +71,21 @@ export const startSession = action({
       systemPrompt: args.options?.systemPrompt,
     });
 
-    await api.navigate(session.sessionId, args.url, config, {
-      waitUntil: args.options?.waitUntil,
-      timeout: args.options?.timeout,
-    });
+    try {
+      await api.navigate(session.sessionId, args.url, config, {
+        waitUntil: args.options?.waitUntil,
+        timeout: args.options?.timeout,
+      });
 
-    return {
-      sessionId: session.sessionId,
-      browserbaseSessionId: session.browserbaseSessionId,
-      cdpUrl: session.cdpUrl,
-    };
+      return {
+        sessionId: session.sessionId,
+        browserbaseSessionId: session.browserbaseSessionId,
+        cdpUrl: session.cdpUrl,
+      };
+    } catch (error) {
+      await api.endSession(session.sessionId, config);
+      throw error;
+    }
   },
 });
 
@@ -131,6 +136,10 @@ export const extract = action({
   },
   returns: v.any(),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -202,6 +211,10 @@ export const act = action({
     actionDescription: v.string(),
   }),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -268,6 +281,10 @@ export const observe = action({
   },
   returns: v.array(observedActionValidator),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -344,6 +361,10 @@ export const agent = action({
     success: v.boolean(),
   }),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
