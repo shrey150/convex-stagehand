@@ -2,9 +2,9 @@
  * Example usage of the Stagehand component
  */
 
-import { action, mutation } from "./_generated/server";
+import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Stagehand } from "../../src/client/index.js";
+import { Stagehand } from "@convex-dev/stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 import { internal } from "./_generated/api";
@@ -303,7 +303,7 @@ export const agentFormFill = action({
  * Internal mutation to save scraped stories to the database.
  * Called by scrapeHackerNews action.
  */
-export const saveStories = mutation({
+export const saveStories = internalMutation({
   args: {
     stories: v.array(
       v.object({
