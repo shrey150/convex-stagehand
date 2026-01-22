@@ -91,7 +91,7 @@ export interface AgentResult {
  *
  * @example
  * ```typescript
- * import { Stagehand } from "@convex-dev/stagehand";
+ * import { Stagehand } from "convex-stagehand";
  * import { components } from "./_generated/api";
  *
  * const stagehand = new Stagehand(components.stagehand, {

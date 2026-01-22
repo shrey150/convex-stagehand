@@ -1,5 +1,5 @@
 import { defineApp } from "convex/server";
-import stagehand from "@convex-dev/stagehand/convex.config";
+import stagehand from "convex-stagehand/convex.config";
 
 const app = defineApp();
 app.use(stagehand, { name: "stagehand" });

@@ -1,4 +1,4 @@
-# @convex-dev/stagehand
+# convex-stagehand
 
 AI-powered browser automation for Convex applications. Extract data, perform actions, and automate workflows using natural language - no Playwright knowledge required.
 
@@ -8,7 +8,6 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 - **Type-safe** - Full TypeScript support with Zod schemas
 - **Session management** - Reuse browser sessions across multiple operations
 - **Agent mode** - Autonomous multi-step task execution
-- **CDP access** - Connect Playwright/Puppeteer directly to managed browser sessions
 - **Powered by Stagehand** - Uses the [Stagehand](https://github.com/browserbase/stagehand) REST API
 
 ## Quick Start
@@ -22,7 +21,7 @@ npm install github:shrey150/convex-stagehand zod
 
 **From npm (when published):**
 ```bash
-npm install @convex-dev/stagehand zod
+npm install convex-stagehand zod
 ```
 
 ### 2. Configure Convex
@@ -31,7 +30,7 @@ Add the component to your `convex/convex.config.ts`:
 
 ```typescript
 import { defineApp } from "convex/server";
-import stagehand from "@convex-dev/stagehand/convex.config";
+import stagehand from "convex-stagehand/convex.config";
 
 const app = defineApp();
 app.use(stagehand, { name: "stagehand" });
@@ -41,19 +40,17 @@ export default app;
 
 ### 3. Set up environment variables
 
-Add these to your Convex dashboard (Settings > Environment Variables):
-
-```
-BROWSERBASE_API_KEY=your_browserbase_api_key
-BROWSERBASE_PROJECT_ID=your_browserbase_project_id
-OPENAI_API_KEY=your_openai_api_key
+```bash
+npx convex env set BROWSERBASE_API_KEY=your_browserbase_api_key
+npx convex env set BROWSERBASE_PROJECT_ID=your_browserbase_project_id
+npx convex env set OPENAI_API_KEY=your_openai_api_key
 ```
 
 ### 4. Use the component
 
 ```typescript
 import { action } from "./_generated/server";
-import { Stagehand } from "@convex-dev/stagehand";
+import { Stagehand } from "convex-stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 
@@ -84,7 +81,7 @@ export const scrapeHackerNews = action({
 
 ### `startSession(ctx, args)`
 
-Start a new browser session. Returns session info including `cdpUrl` for direct Playwright/Puppeteer connection.
+Start a new browser session.
 
 ```typescript
 const session = await stagehand.startSession(ctx, {
@@ -109,7 +106,6 @@ const session = await stagehand.startSession(ctx, {
 {
   sessionId: string;           // Use with other operations
   browserbaseSessionId?: string; // Store to resume later
-  cdpUrl?: string;             // Connect Playwright/Puppeteer
 }
 ```
 
@@ -375,33 +371,6 @@ export const continueBrowsing = action({
     });
   }
 });
-```
-
-### Connect Playwright directly
-
-Use the `cdpUrl` to connect Playwright or Puppeteer for advanced automation:
-
-```typescript
-import { chromium } from "playwright";
-
-const session = await stagehand.startSession(ctx, {
-  url: "https://example.com"
-});
-
-// Connect Playwright to the same browser
-const browser = await chromium.connectOverCDP(session.cdpUrl!);
-const page = browser.contexts()[0].pages()[0];
-
-// Use Playwright's full API
-await page.screenshot({ path: "screenshot.png" });
-
-// Continue using Stagehand in the same session
-await stagehand.act(ctx, {
-  sessionId: session.sessionId,
-  action: "Click the submit button"
-});
-
-await stagehand.endSession(ctx, { sessionId: session.sessionId });
 ```
 
 ## Configuration Options

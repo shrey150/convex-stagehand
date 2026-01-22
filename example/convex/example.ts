@@ -4,7 +4,7 @@
 
 import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Stagehand } from "@convex-dev/stagehand";
+import { Stagehand } from "convex-stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 import { internal } from "./_generated/api";
